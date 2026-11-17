@@ -1,7 +1,7 @@
 /* HSK app service worker: offline-first app.
    - app page: network-first (gets updates), falls back to cache offline
    - vocabulary data, stroke-order data, fonts, scripts: cache-first (downloaded once) */
-var VER = 'd84c39b802';
+var VER = '474ee3adde';
 var SHELL = 'hsk-shell-' + VER, RUNTIME = 'hsk-rt-v1';
 var CORE = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png',
   'https://cdn.jsdelivr.net/npm/hanzi-writer@3.7.2/dist/hanzi-writer.min.js'];
