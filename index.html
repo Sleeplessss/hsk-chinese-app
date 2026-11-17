@@ -488,7 +488,7 @@ window.CHARPY={"一":"yi","丁":"ding","七":"qi","万":"wan","丈":"zhang","三
     }
     modal('เลือกระบบและระดับ HSK', body(), function bind(b) {
       $$('#lp-sys button', b).forEach(function (x) { x.onclick = function () { sys = x.dataset.s; b.innerHTML = body(); bind(b); }; });
-      $$('[data-lv]', b).forEach(function (x) { x.onclick = function () { S.sys = sys; S.lv[sys] = +x.dataset.lv; save(); closeModal(); go(R.v === 'home' ? 'home' : 'vocab'); }; });
+      $$('[data-lv]', b).forEach(function (x) { x.onclick = function () { S.sys = sys; S.lv[sys] = +x.dataset.lv; save(); closeModal(); go(R.v === 'home' || R.v === 'write' || R.v === 'links' ? R.v : 'vocab'); }; });
     });
   }
 
@@ -957,7 +957,8 @@ window.CHARPY={"一":"yi","丁":"ding","七":"qi","万":"wan","丈":"zhang","三
       if (si >= 0) { (A.S.wr.last = A.S.wr.last || {})[sys + lv] = si; A.save(); }
       el.innerHTML = '<div class="uhead noprint"><div class="eyebrow">ฝึกเขียน · 写</div><h1>ตาราง 田字格</h1><p>แถวละ 1 ตัว: ตัวต้นแบบ → ลำดับขีดทีละขีด → เขียนทับรอยจาง ๆ · <b>แตะแถวเพื่อฝึกเขียนบนจอ</b></p></div>' +
         '<div class="search noprint mt"><input type="text" id="w-in" placeholder="พิมพ์ตัวจีนที่อยากฝึก เช่น 火车" value="' + esc(R.chars || '') + '"><button class="btn" id="w-go" style="width:auto">ฝึก</button></div>' +
-        '<div class="chips noprint mt" id="w-sets">' + sets.map(function (ws, i) { return '<button class="chip ' + (i === si ? 'on' : '') + '" data-i="' + i + '">' + A.lvName(sys, lv) + ' · ชุด ' + (i + 1) + '</button>'; }).join('') + '</div>' +
+        '<div class="sec noprint"><h2>' + A.lvName(sys, lv) + ' · ' + sets.length + ' ชุด</h2><button class="chip on" id="w-lv">เปลี่ยนระดับ HSK</button></div>' +
+        '<div class="chips noprint" id="w-sets">' + sets.map(function (ws, i) { return '<button class="chip ' + (i === si ? 'on' : '') + '" data-i="' + i + '">' + A.lvName(sys, lv) + ' · ชุด ' + (i + 1) + '</button>'; }).join('') + '</div>' +
         '<div class="chips noprint"><button class="chip ' + (A.S.wr.empty ? 'on' : '') + '" id="w-empty">+ แถวว่างฝึกเอง</button><button class="chip ' + (A.S.wr.mi ? 'on' : '') + '" id="w-mi">เส้นทแยง 米字格</button><button class="chip" id="w-print">🖨️ พิมพ์ / PDF</button></div>' +
         '<div class="sheet mt" id="w-sheet">' + chars.map(function (c) { return '<div class="wcap noprint"><span class="han">' + esc(c) + '</span><span class="cap-' + c.charCodeAt(0) + '">…</span></div><div class="wblk" data-c="' + esc(c) + '">' + rowsFor(c, null, colsNow()) + '</div>'; }).join('') + '</div>' +
         '<div class="note noprint">ลำดับขีดจากฐานข้อมูล Make Me a Hanzi · ต้องต่ออินเทอร์เน็ตครั้งแรกเพื่อโหลดรูปขีด</div>';
@@ -979,6 +980,7 @@ window.CHARPY={"一":"yi","丁":"ding","七":"qi","万":"wan","丈":"zhang","三
       if (mql && mql.addEventListener) { mql.addEventListener('change', onPrint); A.leave.push(function () { mql.removeEventListener('change', onPrint); }); }
       window.addEventListener('beforeprint', onPrint); window.addEventListener('afterprint', onPrint);
       A.leave.push(function () { window.removeEventListener('beforeprint', onPrint); window.removeEventListener('afterprint', onPrint); });
+      $('#w-lv').onclick = A.levelPicker;
       $('#w-go').onclick = function () { var v = $('#w-in').value.trim(); if (!uniq(v).length) { A.toast('พิมพ์ตัวอักษรจีนก่อนนะ'); return; } A.go('write', { chars: v }); };
       $('#w-in').onkeydown = function (e) { if (e.key === 'Enter') $('#w-go').click(); };
       $$('#w-sets .chip', el).forEach(function (b) { b.onclick = function () { A.go('write', { set: +b.dataset.i }); }; });
