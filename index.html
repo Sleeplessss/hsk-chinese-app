@@ -3,6 +3,7 @@
 <head>
 <base target="_top">
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#faf6ee">
 <title>HSK จีนเรียนสนุก · แฟลชการ์ด พูด เขียน เชื่อมโยง</title>
@@ -398,25 +399,59 @@ window.CHARPY={"一":"yi","丁":"ding","七":"qi","万":"wan","丈":"zhang","三
       this.voice = vs[0] || null; return this.voice;
     },
     mark: function (on) { var b = this.btn; if (!b) return; b.classList.toggle('playing', on); if (b.classList.contains('round') && b.dataset.icon !== 'spk') b.innerHTML = on ? I.stop : I.play; },
-    stop: function () { if (this.ok) speechSynthesis.cancel(); if (this.audio) { this.audio.pause(); this.audio = null; } this.mark(false); this.btn = null; },
+    stop: function () { this.tok = (this.tok || 0) + 1; if (this.ok) speechSynthesis.cancel(); if (this.audio) { this.audio.pause(); this.audio = null; } this.mark(false); this.btn = null; },
     speak: function (text, btn, done, rate) {
       var self = this;
       if (btn && this.btn === btn) { this.stop(); return; }
       this.stop(); this.btn = btn || null; this.mark(true);
-      var fin = function () { if (self.btn === btn) { self.mark(false); self.btn = null; } if (done) done(); };
-      var v = this.pick();
-      if (!v) return this.fallback(text, rate, fin);
-      var u = new SpeechSynthesisUtterance(text);
-      u.voice = v; u.lang = v.lang; u.rate = rate || S.rate || 0.8;
-      u.onend = fin; u.onerror = fin;
-      speechSynthesis.speak(u);
+      var my = this.tok = (this.tok || 0) + 1;
+      var fin = function () { if (self.tok !== my) return; if (self.btn === btn) { self.mark(false); self.btn = null; } if (done) done(); };
+      var go = function () {
+        if (self.tok !== my) return;
+        var v = self.pick();
+        if (v) return self.native(text, v, rate, fin, function () { self.online(text, rate, fin, 0); });
+        self.online(text, rate, fin, 0);
+      };
+      /* Android Chrome loads voices late: wait briefly the first time */
+      if (this.ok && !speechSynthesis.getVoices().length && !this.waited) {
+        this.waited = true; var t = setTimeout(go, 1200);
+        var prev = speechSynthesis.onvoiceschanged;
+        speechSynthesis.onvoiceschanged = function () { if (prev) prev(); clearTimeout(t); go(); speechSynthesis.onvoiceschanged = prev; };
+        return;
+      }
+      go();
     },
-    fallback: function (text, rate, fin) {
+    native: function (text, v, rate, fin, fail) {
+      var u = new SpeechSynthesisUtterance(text), started = false;
+      if (v) u.voice = v; u.lang = v ? v.lang : 'zh-CN'; u.rate = rate || S.rate || 0.8;
+      u.onstart = function () { started = true; };
+      u.onend = fin; u.onerror = function () { started ? fin() : fail(); };
+      speechSynthesis.speak(u);
+      setTimeout(function () { if (!started && !speechSynthesis.speaking) { speechSynthesis.cancel(); fail(); } }, 2500);
+    },
+    /* online voices when the device has no Chinese TTS: Google → Youdao → system default */
+    online: function (text, rate, fin, i) {
+      var self = this, slow = (rate || S.rate || 0.8) < 0.75, q = encodeURIComponent(text);
+      var src = [
+        'https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&ttsspeed=' + (slow ? '0.24' : '1') + '&q=' + q,
+        'https://dict.youdao.com/dictvoice?le=zh&audio=' + q
+      ];
+      if (i >= src.length) {
+        if (this.ok) return this.native(text, null, rate, fin, function () { self.noVoice(); fin(); });
+        this.noVoice(); return fin();
+      }
       try {
-        var a = new Audio('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=zh-CN&ttsspeed=' + ((rate || S.rate) < 0.75 ? '0.24' : '1') + '&q=' + encodeURIComponent(text));
-        this.audio = a; a.onended = fin; a.onerror = function () { toast('อุปกรณ์นี้ไม่มีเสียงภาษาจีน — ติดตั้งเสียงภาษาจีนในตั้งค่า Text-to-speech'); fin(); };
-        a.play().catch(function () { fin(); });
-      } catch (e) { fin(); }
+        var a = new Audio(); a.referrerPolicy = 'no-referrer'; a.preload = 'auto';
+        if (slow && i === 1) a.playbackRate = 0.8;
+        this.audio = a;
+        var next = function () { if (self.audio === a) { self.audio = null; self.online(text, rate, fin, i + 1); } };
+        a.onended = fin; a.onerror = next; a.src = src[i];
+        var p = a.play(); if (p && p.catch) p.catch(function (e) { if (e && e.name === 'NotAllowedError') fin(); else next(); });
+      } catch (e) { this.online(text, rate, fin, i + 1); }
+    },
+    noVoice: function () {
+      var ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+      toast(ios ? 'ไม่มีเสียงจีน: ตั้งค่า → การช่วยการเข้าถึง → เนื้อหาที่พูด → เสียง → จีน' : 'ไม่มีเสียงจีน: ตรวจอินเทอร์เน็ต หรือติดตั้ง "ภาษาจีน" ใน ตั้งค่า → Text-to-speech');
     }
   };
   if (TTS.ok) { TTS.pick(); speechSynthesis.onvoiceschanged = function () { TTS.pick(); }; }
@@ -664,7 +699,7 @@ window.CHARPY={"一":"yi","丁":"ding","七":"qi","万":"wan","丈":"zhang","三
   V.settings = function (el) {
     top({ back: function () { go('home'); }, title: 'ตั้งค่า' });
     var v = TTS.pick();
-    el.innerHTML = '<div id="ins-box"></div><div class="card"><b>เสียงภาษาจีน</b><p class="small muted" style="margin:4px 0 10px">' + (v ? 'ใช้เสียง: ' + esc(v.name) + ' (' + esc(v.lang) + ')' : 'ไม่พบเสียงภาษาจีนในเครื่อง — ระบบจะใช้เสียงออนไลน์แทน (Android: ตั้งค่า → การช่วยเหลือพิเศษ → Text-to-speech → ติดตั้งภาษาจีน)') + '</p>' +
+    el.innerHTML = '<div id="ins-box"></div><div class="card"><b>เสียงภาษาจีน</b><p class="small muted" style="margin:4px 0 10px">' + (v ? 'ใช้เสียง: ' + esc(v.name) + ' (' + esc(v.lang) + ')' : 'ไม่พบเสียงภาษาจีนในเครื่อง — ใช้เสียงออนไลน์แทนอัตโนมัติ (ต้องต่อเน็ต) · ถ้าอยากใช้ตอนออฟไลน์: Android → ตั้งค่า → Text-to-speech → ติดตั้งภาษาจีน · iPhone → การช่วยการเข้าถึง → เนื้อหาที่พูด → เสียง → จีน') + '</p>' +
       '<label class="lb">ความเร็วเสียง</label><div class="chips">' + [[0.5, 'ช้ามาก'], [0.7, 'ช้า'], [0.8, 'ปกติ (แนะนำ)'], [1, 'เร็ว']].map(function (r) { return '<button class="chip ' + (Math.abs(S.rate - r[0]) < .01 ? 'on' : '') + '" data-r="' + r[0] + '">' + r[1] + '</button>'; }).join('') + '</div>' +
       '<div class="btns"><button class="btn ghost" id="st-test">🔊 ทดสอบเสียง: 你好，欢迎学习中文！</button></div></div>' +
       '<div class="card"><b>ย้ายความคืบหน้าไปเครื่องอื่น</b><p class="small muted" style="margin:4px 0 8px">ข้อมูลเก็บในเบราว์เซอร์ของเครื่องนี้ คัดลอกรหัสไปวางในเครื่องใหม่</p><textarea id="st-code" rows="3" readonly style="font-size:12px;font-family:monospace"></textarea>' +
